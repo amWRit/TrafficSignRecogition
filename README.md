@@ -33,3 +33,4 @@ This project is licensed under the MIT License.
 ## Acknowledgments
 
 - [German Traffic Sign Recognition Benchmark (GTSRB)](http://benchmark.ini.rub.de/)
+- [Integrating OpenCV with Visual Studio C++ Projects on Windows](https://christianjmills.com/posts/opencv-visual-studio-getting-started-tutorial/windows/)
