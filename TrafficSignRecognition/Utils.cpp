@@ -1,9 +1,13 @@
 #include "Utils.h"
 #include <filesystem>
+#include <random>
 #include <opencv2/ml.hpp>
 
 // Load images from directories and store them in vectors.
-void load_data(const std::string& data_dir, std::vector<cv::Mat>& images, std::vector<int>& labels) {
+void load_data(const std::string& data_dir,
+    std::vector<cv::Mat>& images,
+    std::vector<int>& labels) {
+    std::cout << "Loading images and labels...\n";
     for (int i = 0; i < NUM_CATEGORIES; ++i) {
         std::string category_path = data_dir + "/" + std::to_string(i);
         for (const auto& entry : std::filesystem::directory_iterator(category_path)) {
@@ -19,7 +23,46 @@ void load_data(const std::string& data_dir, std::vector<cv::Mat>& images, std::v
             }
         }
     }
+    std::cout << "Loading completed.\n";
+    std::cout << "Data Rows: " << images.size() << ", Labels Rows: " << labels.size() << std::endl;
 }
+
+// Function to split data into training and testing sets
+void split_data(const std::vector<cv::Mat>& images, const std::vector<int>& labels,
+    std::vector<cv::Mat>& trainImages, std::vector<int>& trainLabels,
+    std::vector<cv::Mat>& testImages, std::vector<int>& testLabels) {
+    std::cout << "\nSplitting images and labels...\n";
+    // Create a vector of indices
+    std::vector<int> indices(images.size());
+    for (size_t i = 0; i < indices.size(); ++i) {
+        indices[i] = i;
+    }
+
+    // Shuffle the indices
+    std::random_device rd;
+    std::mt19937 g(rd());
+    std::shuffle(indices.begin(), indices.end(), g);
+
+    // Calculate the split index
+    size_t splitIndex = static_cast<size_t>(images.size() * (1 - TEST_SIZE));
+
+    // Split into training and testing sets
+    for (size_t i = 0; i < indices.size(); ++i) {
+        if (i < splitIndex) {
+            trainImages.push_back(images[indices[i]]);
+            trainLabels.push_back(labels[indices[i]]);
+        }
+        else {
+            testImages.push_back(images[indices[i]]);
+            testLabels.push_back(labels[indices[i]]);
+        }
+    }
+    std::cout << "Splitting completed.\n";
+    std::cout << "Train Data Rows: " << trainImages.size() << ", Train Labels Rows: " << trainLabels.size() << std::endl;
+    std::cout << "Test Data Rows: " << testImages.size() << ", Test Labels Rows: " << testLabels.size() << std::endl;
+
+}
+
 
 // Preprocess image (resize and normalize if necessary)
 void preprocess_image(cv::Mat& img) {
@@ -36,10 +79,11 @@ void preprocess_image(cv::Mat& img) {
 //}
 
 // Placeholder function for training the model
-void train_model(const std::vector<cv::Mat>& images, 
-    const std::vector<int>& labels, 
+void train_model(const std::vector<cv::Mat>& images,
+    const std::vector<int>& labels,
     cv::Ptr<cv::ml::KNearest>& knn) {
     // Prepare data for training
+    std::cout << "\nTraining the model...\n";
     cv::Mat trainData;
     cv::Mat labelsMat = cv::Mat(labels).reshape(1, labels.size()); // Convert labels to Mat
 
@@ -67,18 +111,19 @@ void train_model(const std::vector<cv::Mat>& images,
     knn->train(trainData, cv::ml::ROW_SAMPLE, labelsMat);
 
     // Save the trained model if needed
-    try {
+    /*try {
         knn->save("knn_model.xml");
     }
     catch (const cv::Exception& e) {
         std::cerr << "Error saving model: " << e.what() << std::endl;
-    }
+    }*/
 }
 // Placeholder function for evaluating the model (implement your evaluation logic here)
-void evaluate_model(const cv::Ptr<cv::ml::KNearest>& knn, 
-    const std::vector<cv::Mat>& testImages, 
+void evaluate_model(const cv::Ptr<cv::ml::KNearest>& knn,
+    const std::vector<cv::Mat>& testImages,
     const std::vector<int>& testLabels) {
     // Prepare data for evaluation
+    std::cout << "\nEvaluating the model...\n";
     cv::Mat testData;
 
     // Flatten test images into a single row
