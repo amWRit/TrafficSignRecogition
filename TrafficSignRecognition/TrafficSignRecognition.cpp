@@ -3,11 +3,10 @@
 #include "Utils.h"
 
 int main() {
-    const std::string data_directory = "gtsrb-small"; // Fixed directory for training data
+    const std::string data_directory = "gtsrb"; // Fixed directory for training data
 
     std::vector<cv::Mat> images;
     std::vector<int> labels;
-
     // Load data from the specified directory
     load_data(data_directory, images, labels);
 
@@ -17,17 +16,23 @@ int main() {
         return -1;
     }
 
+    // Split data into training and testing sets
+    std::vector<cv::Mat> trainImages, testImages;
+    std::vector<int> trainLabels, testLabels;
+
+    split_data(images, labels, trainImages, trainLabels, testImages, testLabels);
+
     // Create k-NN instance
     auto knn = cv::ml::KNearest::create();
 
     // Train the model using the loaded images and labels
-        train_model(images, labels, knn);
+    train_model(trainImages, trainLabels, knn);
 
     // Prepare your test data
-    const std::string test_data_directory = "test-data";
-    std::vector<cv::Mat> testImages; // Load or prepare your test images
-    std::vector<int> testLabels;      // Load or prepare your test labels
-    load_data(test_data_directory, testImages, testLabels);
+    //const std::string test_data_directory = "test-data";
+    //std::vector<cv::Mat> testImages; // Load or prepare your test images
+    //std::vector<int> testLabels;      // Load or prepare your test labels
+    //load_data(test_data_directory, testImages, testLabels);
 
     // Evaluate model performance (optional)
     evaluate_model(knn, testImages, testLabels);
@@ -54,7 +59,7 @@ int main() {
         return -1; // Handle prediction failure
     }
 
-    std::cout << "Predicted Traffic Sign Category: " << predicted_label << std::endl;
+    std::cout << "\nPredicted Traffic Sign Category: " << predicted_label << std::endl;
 
     return 0;
 }
