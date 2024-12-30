@@ -7,7 +7,6 @@
 #include <sstream>
 #include <thread>
 #include <future>
-#include <mutex>
 
 std::unordered_map<std::string, int> test_data_map;
 std::mutex mtx; // Mutex for synchronizing access to predictedLabels
@@ -233,10 +232,23 @@ void evaluate_model(const cv::Ptr<cv::ml::KNearest>& knn,
         std::cerr << "Test data is empty!" << std::endl;
         return;
     }
-
+    
+    // == WITHOUT THREADING ==
     // Predict labels for the test data using multiple threads
-    cv::Mat predictedLabels;
+    //cv::Mat predictedLabels;
+    //knn->findNearest(testData, knn->getDefaultK(), predictedLabels);
 
+    //// Calculate accuracy
+    //int correctCount = 0;
+    //for (size_t i = 0; i < predictedLabels.rows; ++i) {
+    //    // std::cout << predictedLabels.at<float>(i, 0) << " : " << testLabels[i] << "\n";
+    //    if (predictedLabels.at<float>(i, 0) == testLabels[i]) {
+    //        correctCount++;
+    //    }
+    //}
+    //// == WITHOUT THREADING ==
+  
+    // == WITH THREADING ==
     // Number of threads to use
     const int numThreads = std::thread::hardware_concurrency(); // Get number of hardware threads
     const size_t totalImages = testImages.size();
@@ -258,7 +270,7 @@ void evaluate_model(const cv::Ptr<cv::ml::KNearest>& knn,
                 correctCount++;
             }
         }
-        };
+    };
 
     // Divide work among threads
     size_t chunkSize = totalImages / numThreads;
@@ -274,10 +286,9 @@ void evaluate_model(const cv::Ptr<cv::ml::KNearest>& knn,
     for (auto& future : futures) {
         future.get();
     }
-
+    // == WITH THREADING ==
 
     double accuracy = static_cast<double>(correctCount) / testLabels.size() * 100.0;
-
     // Display results
     std::cout << "Accuracy: " << accuracy << "%" << std::endl;
 }
