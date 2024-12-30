@@ -7,6 +7,7 @@
 #include <sstream>
 #include <thread>
 #include <future>
+#include <chrono>
 
 std::unordered_map<std::string, int> test_data_map;
 std::mutex mtx; // Mutex for synchronizing access to predictedLabels
@@ -159,8 +160,8 @@ void preprocess_image(cv::Mat& img) {
 // function for training the model
 void train_model(const std::vector<cv::Mat>& images,
     const std::vector<int>& labels,
-    cv::Ptr<cv::ml::KNearest>& knn) {
-    // Prepare data for training
+    const cv::Ptr<cv::ml::RTrees>& rtrees) {
+    auto start = std::chrono::high_resolution_clock::now();
     std::cout << "\nTraining the model...\n";
     cv::Mat trainData;
     cv::Mat labelsMat = cv::Mat(labels).reshape(1, labels.size()); // Convert labels to Mat
@@ -172,7 +173,7 @@ void train_model(const std::vector<cv::Mat>& images,
     }
 
     // Normalize pixel values
-    //trainData /= 255.0; // Normalize pixel values to [0, 1]
+    trainData /= 255.0; // Normalize pixel values to [0, 1]
 
     // Convert to float if necessary
     if (trainData.type() != CV_32F) {
@@ -187,15 +188,8 @@ void train_model(const std::vector<cv::Mat>& images,
 
     std::cout << "Train Data Rows: " << trainData.rows << ", Train Labels Rows: " << labelsMat.rows << std::endl;
 
-    // Train k-NN model
-    knn->setDefaultK(3); // Set number of neighbors
-    knn->train(trainData, cv::ml::ROW_SAMPLE, labelsMat);
-
-    // Train k-NN model with different k values
-    //for (int k = 1; k <= 11; k += 2) { // Test odd values from 1 to 11
-    //    knn->setDefaultK(k);
-    //    knn->train(trainData, cv::ml::ROW_SAMPLE, labelsMat);
-    //}
+     // Train the model
+    rtrees->train(trainData, cv::ml::ROW_SAMPLE, labelsMat);
 
     // Save the trained model if needed
     /*try {
@@ -204,12 +198,16 @@ void train_model(const std::vector<cv::Mat>& images,
     catch (const cv::Exception& e) {
         std::cerr << "Error saving model: " << e.what() << std::endl;
     }*/
+    auto stop = std::chrono::high_resolution_clock::now();
+    auto duration = std::chrono::duration_cast<std::chrono::microseconds>(stop - start);
+    std::cout << "Time taken: " << duration.count() / 60000000 << " minutes" << std::endl;
 }
+
 // Function for evaluating the trained model by testing against test-data
-void evaluate_model(const cv::Ptr<cv::ml::KNearest>& knn,
+void evaluate_model(const cv::Ptr<cv::ml::RTrees>& rtrees,
     const std::vector<cv::Mat>& testImages,
     const std::vector<int>& testLabels) {
-    // Prepare data for evaluation
+    auto start = std::chrono::high_resolution_clock::now();
     std::cout << "\nEvaluating the model...\n";
     cv::Mat testData;
 
@@ -261,7 +259,8 @@ void evaluate_model(const cv::Ptr<cv::ml::KNearest>& knn,
     auto process_images = [&](size_t start, size_t end, int threadIndex) {
         std::cout << "\n Starting thread..." << threadIndex << "\n";
         cv::Mat localPredictedLabels;
-        knn->findNearest(testData.rowRange(start, end), knn->getDefaultK(), localPredictedLabels);
+        //knn->findNearest(testData.rowRange(start, end), knn->getDefaultK(), localPredictedLabels);
+        rtrees->predict(testData.rowRange(start, end), localPredictedLabels);
 
         // Store results in a shared vector or process them directly here
         for (size_t i = start; i < end; ++i) {
@@ -291,22 +290,26 @@ void evaluate_model(const cv::Ptr<cv::ml::KNearest>& knn,
     double accuracy = static_cast<double>(correctCount) / testLabels.size() * 100.0;
     // Display results
     std::cout << "Accuracy: " << accuracy << "%" << std::endl;
+    auto stop = std::chrono::high_resolution_clock::now();
+    auto duration = std::chrono::duration_cast<std::chrono::microseconds>(stop - start);
+    std::cout << "Time taken: " << duration.count() / 60000000 << " minutes" << std::endl;
 }
 
 
 // Function to predict the traffic sign category
-int predict_traffic_sign(const cv::Ptr<cv::ml::KNearest>& knn, const cv::Mat& img) {
+int predict_traffic_sign(const cv::Ptr<cv::ml::RTrees>& rtrees, const cv::Mat& img) {
     cv::Mat flatImg = img.reshape(1, 1); // Ensure it is a single row
 
     // Make prediction using k-NN
     cv::Mat predictedLabel;
-    knn->findNearest(flatImg, knn->getDefaultK(), predictedLabel);
+    //knn->findNearest(flatImg, knn->getDefaultK(), predictedLabel);
+    rtrees->predict(flatImg, predictedLabel);
 
     return static_cast<int>(predictedLabel.at<float>(0, 0)); // Return predicted label
 }
 
 // Function to make predictions for test-images using predict_traffic_sign method
-void make_predictions(const std::string& test_data_dir, int count, const cv::Ptr<cv::ml::KNearest>& knn) {
+void make_predictions(const std::string& test_data_dir, int count, const cv::Ptr<cv::ml::RTrees>& rtrees) {
     std::cout << "\nMaking predictions...\n";
     // Create a vector of filenames from the test_data_map
     std::vector<std::string> filenames;
@@ -331,7 +334,7 @@ void make_predictions(const std::string& test_data_dir, int count, const cv::Ptr
         preprocess_image(img);
 
         // Predict the traffic sign category
-        int predicted_label = predict_traffic_sign(knn, img);
+        int predicted_label = predict_traffic_sign(rtrees, img);
 
         if (predicted_label == -1) {
             std::cerr << "Error: Prediction failed!" << std::endl;

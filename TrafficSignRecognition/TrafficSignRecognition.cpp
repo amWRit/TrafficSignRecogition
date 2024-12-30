@@ -27,16 +27,25 @@ int main() {
     }
 
     // Create k-NN instance
-    auto knn = cv::ml::KNearest::create();
+    //auto knn = cv::ml::KNearest::create();
+
+    // Create and configure the RTrees model
+    cv::Ptr<cv::ml::RTrees> rtrees = cv::ml::RTrees::create();
+    rtrees->setMaxDepth(10); // Set maximum depth of trees
+    rtrees->setMinSampleCount(5); // Minimum sample count for leaf nodes
+    rtrees->setMaxCategories(2); // Maximum categories for classification
+    rtrees->setCalculateVarImportance(true); // Calculate variable importance
+    rtrees->setTermCriteria(cv::TermCriteria(cv::TermCriteria::MAX_ITER + cv::TermCriteria::EPS, 100, 0.01)); // Termination criteria
+
 
     // Train the model using the loaded images and labels
-    train_model(trainImages, trainLabels, knn);
+    train_model(trainImages, trainLabels, rtrees);
 
     // Evaluate model performance (optional)
-    evaluate_model(knn, testImages, testLabels);
+    evaluate_model(rtrees, testImages, testLabels);
 
     // Using gtsrb-test-data-classification.csv, load filename and respective classID to a map
     build_test_data_class_ID_map(test_data_class_file);
-    make_predictions(test_data_directory, 5, knn);
+    make_predictions(test_data_directory, 5, rtrees);
     return 0;
 }
