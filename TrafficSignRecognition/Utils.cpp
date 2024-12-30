@@ -1,15 +1,22 @@
 #include "Utils.h"
 #include <filesystem>
+#include <unordered_map>
 #include <random>
 #include <opencv2/ml.hpp>
+#include <fstream>
+#include <sstream>
 
-// Load images from directories and store them in vectors.
+std::unordered_map<std::string, int> test_data_map;
+
+// Function to load images from 43 category folders (0-42) and add corresponding labels
 void load_data(const std::string& data_dir,
     std::vector<cv::Mat>& images,
     std::vector<int>& labels) {
-    std::cout << "Loading images and labels...\n";
+    std::cout << "Loading training images and labels...\n";
     for (int i = 0; i < NUM_CATEGORIES; ++i) {
-        std::string category_path = data_dir + "/" + std::to_string(i);
+        // Construct the path for the new folder structure (00000 to 00042)
+        std::string category_path = data_dir + "/" + std::string(5 - std::to_string(i).length(), '0') + std::to_string(i);
+
         for (const auto& entry : std::filesystem::directory_iterator(category_path)) {
             if (entry.path().extension() == ".ppm") { // Only load .ppm files
                 cv::Mat img = cv::imread(entry.path().string(), cv::IMREAD_COLOR);
@@ -27,11 +34,84 @@ void load_data(const std::string& data_dir,
     std::cout << "Data Rows: " << images.size() << ", Labels Rows: " << labels.size() << std::endl;
 }
 
+// Function to load test images from test-data directory and add corresponding labels from test_data_map
+void load_test_data(const std::string& test_data_dir,
+    std::vector<cv::Mat>& testImages,
+    std::vector<int>& testLabels) {
+    std::cout << "\nLoading test images and labels...\n";
+    for (const auto& entry : std::filesystem::directory_iterator(test_data_dir)) {
+        if (entry.path().extension() == ".ppm") { // Only load .ppm files
+            cv::Mat img = cv::imread(entry.path().string(), cv::IMREAD_COLOR);
+            if (img.empty()) {
+                std::cerr << "Warning: Could not open or find image: " << entry.path() << std::endl;
+                continue; // Skip this image if it cannot be loaded
+            }
+
+            // Extract the filename including the extension
+            std::string filename = entry.path().filename().string(); // This includes the .ppm extension
+
+            // Check if the filename exists in the map and retrieve the label
+            auto it = test_data_map.find(filename);
+            if (it != test_data_map.end()) {
+                int label = it->second; // Get the label from the map
+                //std::cout << filename << " : " << label << "\n";
+                preprocess_image(img); // Preprocess image if needed
+                testImages.push_back(img);
+                testLabels.push_back(label);
+            }
+            else {
+                //std::cerr << "Warning: No label found for file: " << filename << "\n";
+            }
+        }
+    }
+    std::cout << "Test loading completed.\n";
+    std::cout << "Test Data Rows: " << testImages.size() << ", Test Labels Rows: " << testLabels.size() << std::endl;
+    //std::cout << "Example: " << testImages.front() << " : " << testLabels.front() << "\n";
+}
+
+// Function to build a map containing test data image name and its classID from gtsrb-test-data-classification.csv
+void build_test_data_class_ID_map(const std::string& filePath) {
+    std::cout << "\nBuilding test map...\n";
+    std::ifstream file(filePath);
+    if (!file.is_open()) {
+        std::cerr << "Failed to open file: " << filePath << std::endl;
+        return;
+    }
+
+    std::string line;
+    // Skip header
+    std::getline(file, line);
+    int count = 0;
+    while (std::getline(file, line)) {
+        std::stringstream ss(line);
+        std::string fileName, classID_str;
+
+        if (std::getline(ss, fileName, ',') && std::getline(ss, classID_str, ','))
+        {
+            test_data_map[fileName] = std::stoi(classID_str);
+            count++;
+        }
+
+        if (count >= 1000) break;
+    }
+    std::cout << "Building map completed.\n";
+    std::cout << "Size: " << test_data_map.size() << std::endl;
+    std::cout << "Example:\n";
+    
+    count = 0;
+    for (const auto& entry : test_data_map) {
+        std::cout << entry.first << " : " << entry.second << "\n";
+        count++;
+        if (count >= 5) break;
+    }
+    file.close();
+}
+
 // Function to split data into training and testing sets
 void split_data(const std::vector<cv::Mat>& images, const std::vector<int>& labels,
     std::vector<cv::Mat>& trainImages, std::vector<int>& trainLabels,
     std::vector<cv::Mat>& testImages, std::vector<int>& testLabels) {
-    std::cout << "\nSplitting images and labels...\n";
+    std::cout << "\nSplitting into Train and Test images and labels...\n";
     // Create a vector of indices
     std::vector<int> indices(images.size());
     for (size_t i = 0; i < indices.size(); ++i) {
@@ -73,12 +153,7 @@ void preprocess_image(cv::Mat& img) {
 }
 
 
-//// Placeholder function for training the model (implement your training logic here)
-//void train_model(const std::vector<cv::Mat>& images, const std::vector<int>& labels) {
-//    // Implement model training logic using TensorFlow C++ API or another library.
-//}
-
-// Placeholder function for training the model
+// function for training the model
 void train_model(const std::vector<cv::Mat>& images,
     const std::vector<int>& labels,
     cv::Ptr<cv::ml::KNearest>& knn) {
@@ -93,6 +168,9 @@ void train_model(const std::vector<cv::Mat>& images,
         trainData.push_back(flatImg);
     }
 
+    // Normalize pixel values
+    //trainData /= 255.0; // Normalize pixel values to [0, 1]
+
     // Convert to float if necessary
     if (trainData.type() != CV_32F) {
         trainData.convertTo(trainData, CV_32F);
@@ -104,11 +182,17 @@ void train_model(const std::vector<cv::Mat>& images,
         return;
     }
 
-    std::cout << "Train Data Rows: " << trainData.rows << ", Labels Rows: " << labelsMat.rows << std::endl;
+    std::cout << "Train Data Rows: " << trainData.rows << ", Train Labels Rows: " << labelsMat.rows << std::endl;
 
     // Train k-NN model
     knn->setDefaultK(3); // Set number of neighbors
     knn->train(trainData, cv::ml::ROW_SAMPLE, labelsMat);
+
+    // Train k-NN model with different k values
+    //for (int k = 1; k <= 11; k += 2) { // Test odd values from 1 to 11
+    //    knn->setDefaultK(k);
+    //    knn->train(trainData, cv::ml::ROW_SAMPLE, labelsMat);
+    //}
 
     // Save the trained model if needed
     /*try {
@@ -118,7 +202,7 @@ void train_model(const std::vector<cv::Mat>& images,
         std::cerr << "Error saving model: " << e.what() << std::endl;
     }*/
 }
-// Placeholder function for evaluating the model (implement your evaluation logic here)
+// Function for evaluating the trained model by testing against test-data
 void evaluate_model(const cv::Ptr<cv::ml::KNearest>& knn,
     const std::vector<cv::Mat>& testImages,
     const std::vector<int>& testLabels) {
@@ -131,6 +215,9 @@ void evaluate_model(const cv::Ptr<cv::ml::KNearest>& knn,
         cv::Mat flatImg = img.reshape(1, 1); // Flatten to 1D
         testData.push_back(flatImg);
     }
+
+    // Normalize pixel values
+    //testData /= 255.0; // Normalize pixel values to [0, 1]
 
     // Convert to float if necessary
     if (testData.type() != CV_32F) {
@@ -150,6 +237,7 @@ void evaluate_model(const cv::Ptr<cv::ml::KNearest>& knn,
     // Calculate accuracy
     int correctCount = 0;
     for (size_t i = 0; i < predictedLabels.rows; ++i) {
+        // std::cout << predictedLabels.at<float>(i, 0) << " : " << testLabels[i] << "\n";
         if (predictedLabels.at<float>(i, 0) == testLabels[i]) {
             correctCount++;
         }
@@ -171,4 +259,41 @@ int predict_traffic_sign(const cv::Ptr<cv::ml::KNearest>& knn, const cv::Mat& im
     knn->findNearest(flatImg, knn->getDefaultK(), predictedLabel);
 
     return static_cast<int>(predictedLabel.at<float>(0, 0)); // Return predicted label
+}
+
+// Function to make predictions for test-images using predict_traffic_sign method
+void make_predictions(const std::string& test_data_dir, int count, const cv::Ptr<cv::ml::KNearest>& knn) {
+    std::cout << "\nMaking predictions...\n";
+    // Create a vector of filenames from the test_data_map
+    std::vector<std::string> filenames;
+    for (const auto& pair : test_data_map) {
+        filenames.push_back(pair.first); // Add filename to the vector
+    }
+
+    // Shuffle the indices
+    std::random_device rd;
+    std::mt19937 g(rd());
+    std::shuffle(filenames.begin(), filenames.end(), g);
+
+    auto it = filenames.begin();
+    for (int i = 0; i < count && it != filenames.end(); ++i, ++it) {
+        std::string filePath = test_data_dir + "/" + *it;
+        std::cout << "File: " << filePath;
+        cv::Mat img = cv::imread(filePath);
+        if (img.empty()) {
+            std::cerr << "Error: Could not open or find the image!" << std::endl;
+        }
+
+        preprocess_image(img);
+
+        // Predict the traffic sign category
+        int predicted_label = predict_traffic_sign(knn, img);
+
+        if (predicted_label == -1) {
+            std::cerr << "Error: Prediction failed!" << std::endl;
+        }
+
+        std::cout << "\nPredicted Traffic Sign Category: " << predicted_label << " || Actual label: " << test_data_map[*it] << std::endl;
+    }
+    std::cout << "Predictions completed.\n";
 }
