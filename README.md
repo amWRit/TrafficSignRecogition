@@ -20,7 +20,7 @@ This project implements a traffic sign recognition system using the k-Nearest Ne
 1. Run the executable:
 ```./traffic_sign_recognition```
 
-2. Follow the prompts to input an image path for prediction (e.g., `images/test_image.ppm`).
+2. Uses the trained model to test on random images from gtsrb-test-data folder
 
 ## Evaluation
 
