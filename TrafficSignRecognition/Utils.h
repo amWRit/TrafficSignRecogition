@@ -32,16 +32,16 @@ void preprocess_image(cv::Mat& img);
 
 void train_model(const std::vector<cv::Mat>& images,
 	const std::vector<int>& labels,
-	cv::Ptr<cv::ml::KNearest>& knn);
+	const cv::Ptr<cv::ml::ANN_MLP>& ann);
 
-void evaluate_model(const cv::Ptr<cv::ml::KNearest>& knn,
+void evaluate_model(const const cv::Ptr<cv::ml::ANN_MLP>& ann,
 	const std::vector<cv::Mat>& testImages,
 	const std::vector<int>& testLabels);
 
-int predict_traffic_sign(const cv::Ptr<cv::ml::KNearest>& knn,
+int predict_traffic_sign(const const cv::Ptr<cv::ml::ANN_MLP>& ann,
 	const cv::Mat& img);
 
 void make_predictions(const std::string& test_data_dir, int count, 
-	const cv::Ptr<cv::ml::KNearest>& knn);
+	const const cv::Ptr<cv::ml::ANN_MLP>& ann);
 
 #endif // UTILS_H
