@@ -5,8 +5,11 @@
 #include <opencv2/ml.hpp>
 #include <fstream>
 #include <sstream>
+#include <thread>
+#include <future>
 
 std::unordered_map<std::string, int> test_data_map;
+std::mutex mtx; // Mutex for synchronizing access to predictedLabels
 
 // Function to load images from 43 category folders (0-42) and add corresponding labels
 void load_data(const std::string& data_dir,
@@ -229,22 +232,63 @@ void evaluate_model(const cv::Ptr<cv::ml::KNearest>& knn,
         std::cerr << "Test data is empty!" << std::endl;
         return;
     }
+    
+    // == WITHOUT THREADING ==
+    // Predict labels for the test data using multiple threads
+    //cv::Mat predictedLabels;
+    //knn->findNearest(testData, knn->getDefaultK(), predictedLabels);
 
-    // Predict labels for the test data
-    cv::Mat predictedLabels;
-    knn->findNearest(testData, knn->getDefaultK(), predictedLabels);
+    //// Calculate accuracy
+    //int correctCount = 0;
+    //for (size_t i = 0; i < predictedLabels.rows; ++i) {
+    //    // std::cout << predictedLabels.at<float>(i, 0) << " : " << testLabels[i] << "\n";
+    //    if (predictedLabels.at<float>(i, 0) == testLabels[i]) {
+    //        correctCount++;
+    //    }
+    //}
+    //// == WITHOUT THREADING ==
+  
+    // == WITH THREADING ==
+    // Number of threads to use
+    const int numThreads = std::thread::hardware_concurrency(); // Get number of hardware threads
+    const size_t totalImages = testImages.size();
 
-    // Calculate accuracy
+    // Create a vector to hold futures for thread results
+    std::vector<std::future<void>> futures(numThreads);
     int correctCount = 0;
-    for (size_t i = 0; i < predictedLabels.rows; ++i) {
-        // std::cout << predictedLabels.at<float>(i, 0) << " : " << testLabels[i] << "\n";
-        if (predictedLabels.at<float>(i, 0) == testLabels[i]) {
-            correctCount++;
+
+    // Lambda function for processing images in parallel
+    auto process_images = [&](size_t start, size_t end, int threadIndex) {
+        std::cout << "\n Starting thread..." << threadIndex << "\n";
+        cv::Mat localPredictedLabels;
+        knn->findNearest(testData.rowRange(start, end), knn->getDefaultK(), localPredictedLabels);
+
+        // Store results in a shared vector or process them directly here
+        for (size_t i = start; i < end; ++i) {
+            if (localPredictedLabels.at<float>(i - start, 0) == testLabels[i]) {
+                // Increment correct count or store results as needed
+                correctCount++;
+            }
         }
+    };
+
+    // Divide work among threads
+    size_t chunkSize = totalImages / numThreads;
+
+    for (int i = 0; i < numThreads; ++i) {
+        size_t start = i * chunkSize;
+        size_t end = (i == numThreads - 1) ? totalImages : start + chunkSize; // Handle last chunk
+
+        futures[i] = std::async(std::launch::async, process_images, start, end, i);
     }
 
-    double accuracy = static_cast<double>(correctCount) / testLabels.size() * 100.0;
+    // Wait for all threads to complete
+    for (auto& future : futures) {
+        future.get();
+    }
+    // == WITH THREADING ==
 
+    double accuracy = static_cast<double>(correctCount) / testLabels.size() * 100.0;
     // Display results
     std::cout << "Accuracy: " << accuracy << "%" << std::endl;
 }
