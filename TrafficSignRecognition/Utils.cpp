@@ -249,8 +249,6 @@ void train_model(const std::vector<cv::Mat>& images,
         knn->train(trainData, cv::ml::ROW_SAMPLE, labelsMat);
     }
 
-    
-
     auto stop = std::chrono::high_resolution_clock::now();
     auto duration = std::chrono::duration_cast<std::chrono::microseconds>(stop - start);
     std::cout << "Time taken: " << duration.count() / 60000000 << " minutes" << std::endl;
@@ -379,7 +377,7 @@ int predict_traffic_sign(const cv::Mat& img, ModelType modelType) {
     return static_cast<int>(predictedLabel.at<float>(0, 0)); // Return predicted label
 }
 
-// Function to make predictions for test-images using predict_traffic_sign method
+// Functions to make predictions for images from test-data-dir using predict_traffic_sign method
 void make_predictions_on_test_set(const std::string& test_data_dir, int count, ModelType modelType) {
     std::cout << "\nMaking predictions on test_set...\n";
     // Create a vector of filenames from the test_data_map
@@ -420,6 +418,7 @@ void make_predictions_on_test_set(const std::string& test_data_dir, int count, M
     std::cout << "Predictions completed.\n\n";
 }
 
+// Functions to make predictions for <Count> number of images loaded in the beginning
 void make_predictions_on_loaded_set(const std::vector<cv::Mat>& images,
                                     const std::vector<int>& labels, int count,
                                     ModelType modelType) {
@@ -454,6 +453,7 @@ void make_predictions_on_loaded_set(const std::vector<cv::Mat>& images,
     std::cout << "Predictions completed.\n";
 }
 
+// Functions to make predictions for random images from /images folder
 void make_predictions_on_test_cases(const std::string& images_dir, ModelType modelType) {
     std::cout << "\nMaking predictions on test cases...\n";
     std::string images_path = images_dir + "/";
@@ -478,7 +478,7 @@ void make_predictions_on_test_cases(const std::string& images_dir, ModelType mod
     std::cout << "Predictions completed.\n";
 }
 
-// New function for parameter optimization
+// function for parameter optimization
 std::pair<double, double> optimize_svm_parameters(const cv::Mat& trainData,
                                                 const cv::Mat& labelsMat,
                                                 double& bestAccuracy) {
@@ -577,6 +577,7 @@ std::pair<double, double> optimize_svm_parameters(const cv::Mat& trainData,
     return std::make_pair(bestC, bestGamma);
 }
 
+// configure svm instance
 void configure_svm() {
     svm = cv::ml::SVM::create();
     svm->setType(cv::ml::SVM::C_SVC);
@@ -592,7 +593,7 @@ void configure_svm() {
     svm->setGamma(bestGamma);
 }
 
-
+// configure knn instance
 void configure_knn() {
     knn = cv::ml::KNearest::create();
     knn->setDefaultK(3); // Set number of neighbors
