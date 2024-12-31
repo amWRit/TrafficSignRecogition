@@ -8,9 +8,11 @@
 #include <thread>
 #include <future>
 #include <chrono>
+#include "EnumClass.h"
 
 std::unordered_map<std::string, int> test_data_map;
-std::mutex mtx; // Mutex for synchronizing access to predictedLabels
+cv::Ptr<cv::ml::KNearest> knn;
+cv::Ptr<cv::ml::SVM> svm;
 
 //function to verify data consistency
 void print_data_statistics(const cv::Mat& data, const std::string& name) {
@@ -91,7 +93,7 @@ void load_test_data(const std::string& test_data_dir,
 
 // Function to build a map containing test data image name and its classID from gtsrb-test-data-classification.csv
 void build_test_data_class_ID_map(const std::string& filePath) {
-    std::cout << "\nBuilding test map...\n";
+    std::cout << "\nBuilding Test Data Classication Map...\n";
     std::ifstream file(filePath);
     if (!file.is_open()) {
         std::cerr << "Failed to open file: " << filePath << std::endl;
@@ -205,7 +207,7 @@ void preprocess_image(cv::Mat& img) {
 // function for training the model
 void train_model(const std::vector<cv::Mat>& images,
     const std::vector<int>& labels,
-    cv::Ptr<cv::ml::SVM>& svm) {
+    ModelType modelType) {
     // Prepare data for training
     auto start = std::chrono::high_resolution_clock::now();
     std::cout << "\nTraining the model...\n";
@@ -236,20 +238,18 @@ void train_model(const std::vector<cv::Mat>& images,
 
     std::cout << "Train Data Rows: " << trainData.rows << ", Train Labels Rows: " << labelsMat.rows << std::endl;
 
-    // Create and configure SVM
-    svm = cv::ml::SVM::create();
-    svm->setType(cv::ml::SVM::C_SVC);
-    svm->setKernel(cv::ml::SVM::RBF);
+    // Create and configure classifiers and train the model
+    if (modelType == ModelType::SVM)
+    {
+        configure_svm();
+        svm->train(trainData, cv::ml::ROW_SAMPLE, labelsMat);
+    }
+    else if (modelType == ModelType::KNN) {
+        configure_knn();
+        knn->train(trainData, cv::ml::ROW_SAMPLE, labelsMat);
+    }
 
-    // Find optimal parameters
-    double bestAccuracy;
-    double bestC = 100, bestGamma = 0.01;
-    //auto [bestC, bestGamma] = optimize_svm_parameters(trainData, labelsMat, bestAccuracy);
-
-    // Train final model with best parameters
-    svm->setC(bestC);
-    svm->setGamma(bestGamma);
-    svm->train(trainData, cv::ml::ROW_SAMPLE, labelsMat);
+    
 
     auto stop = std::chrono::high_resolution_clock::now();
     auto duration = std::chrono::duration_cast<std::chrono::microseconds>(stop - start);
@@ -257,9 +257,9 @@ void train_model(const std::vector<cv::Mat>& images,
 }
 
 // Function for evaluating the trained model by testing against test-data
-void evaluate_model(const cv::Ptr<cv::ml::SVM>& svm,
-    const std::vector<cv::Mat>& testImages,
-    const std::vector<int>& testLabels) {
+void evaluate_model(const std::vector<cv::Mat>& testImages,
+    const std::vector<int>& testLabels,
+    ModelType modelType) {
     // Prepare data for evaluation
     auto start = std::chrono::high_resolution_clock::now();
     std::cout << "\nEvaluating the model (splitted train vs test data)...\n";
@@ -313,9 +313,14 @@ void evaluate_model(const cv::Ptr<cv::ml::SVM>& svm,
     auto process_images = [&](size_t start, size_t end, int threadIndex) {
         std::cout << "Starting thread..." << threadIndex << "\n";
         cv::Mat localPredictedLabels;
-        //knn->findNearest(testData.rowRange(start, end), knn->getDefaultK(), localPredictedLabels);
-        svm->predict(testData.rowRange(start, end), localPredictedLabels);
-
+        if (modelType == ModelType::SVM)
+        {
+            svm->predict(testData.rowRange(start, end), localPredictedLabels);
+        }
+        else if (modelType == ModelType::KNN) {
+            knn->findNearest(testData.rowRange(start, end), knn->getDefaultK(), localPredictedLabels);
+        }
+        
         // Store results in a shared vector or process them directly here
         for (size_t i = start; i < end; ++i) {
             if (localPredictedLabels.at<float>(i - start, 0) == testLabels[i]) {
@@ -351,7 +356,7 @@ void evaluate_model(const cv::Ptr<cv::ml::SVM>& svm,
 
 
 // Function to predict the traffic sign category
-int predict_traffic_sign(const cv::Ptr<cv::ml::SVM>& svm, const cv::Mat& img) {
+int predict_traffic_sign(const cv::Mat& img, ModelType modelType) {
     cv::Mat processedImg = img.clone(); // Clone to avoid modifying 
     
     // Ensure proper type and shape
@@ -362,13 +367,20 @@ int predict_traffic_sign(const cv::Ptr<cv::ml::SVM>& svm, const cv::Mat& img) {
 
     // Make prediction
     cv::Mat predictedLabel;
-    //knn->findNearest(flatImg, knn->getDefaultK(), predictedLabel);
-    svm->predict(processedImg, predictedLabel);
+    
+    if (modelType == ModelType::SVM)
+    {
+        svm->predict(processedImg, predictedLabel);
+    }
+    else if (modelType == ModelType::KNN) {
+        knn->findNearest(processedImg, knn->getDefaultK(), predictedLabel);
+    }
+
     return static_cast<int>(predictedLabel.at<float>(0, 0)); // Return predicted label
 }
 
 // Function to make predictions for test-images using predict_traffic_sign method
-void make_predictions_on_test_set(const std::string& test_data_dir, int count, const cv::Ptr<cv::ml::SVM>& svm) {
+void make_predictions_on_test_set(const std::string& test_data_dir, int count, ModelType modelType) {
     std::cout << "\nMaking predictions on test_set...\n";
     // Create a vector of filenames from the test_data_map
     std::vector<std::string> filenames;
@@ -391,7 +403,7 @@ void make_predictions_on_test_set(const std::string& test_data_dir, int count, c
             std::cerr << "Error: Could not open or find the image!" << std::endl;
         }
         preprocess_image(img);
-        int predicted_label = predict_traffic_sign(svm, img);
+        int predicted_label = predict_traffic_sign(img, ModelType::SVM);
         int actual_label = test_data_map[*it];
 
         if (predicted_label == -1) {
@@ -410,7 +422,7 @@ void make_predictions_on_test_set(const std::string& test_data_dir, int count, c
 
 void make_predictions_on_loaded_set(const std::vector<cv::Mat>& images,
                                     const std::vector<int>& labels, int count,
-                                    cv::Ptr<cv::ml::SVM>& svm) {
+                                    ModelType modelType) {
     std::cout << "\Making predictions on random samples from loaded set...\n";
     // Create a vector of indices
     std::vector<int> indices(images.size());
@@ -431,7 +443,7 @@ void make_predictions_on_loaded_set(const std::vector<cv::Mat>& images,
         }
 
         // Predict the traffic sign category
-        int predicted_label = predict_traffic_sign(svm, img);
+        int predicted_label = predict_traffic_sign(img, ModelType::SVM);
 
         if (predicted_label == -1) {
             std::cerr << "Error: Prediction failed!" << std::endl;
@@ -442,7 +454,7 @@ void make_predictions_on_loaded_set(const std::vector<cv::Mat>& images,
     std::cout << "Predictions completed.\n";
 }
 
-void make_predictions_on_test_cases(const std::string& images_dir, cv::Ptr<cv::ml::SVM>& svm) {
+void make_predictions_on_test_cases(const std::string& images_dir, ModelType modelType) {
     std::cout << "\nMaking predictions on test cases...\n";
     std::string images_path = images_dir + "/";
     for (const auto& entry : std::filesystem::directory_iterator(images_path)) {
@@ -455,7 +467,7 @@ void make_predictions_on_test_cases(const std::string& images_dir, cv::Ptr<cv::m
             }
             preprocess_image(img); // Preprocess image if needed
             // Predict the traffic sign category
-            int predicted_label = predict_traffic_sign(svm, img);
+            int predicted_label = predict_traffic_sign(img, ModelType::SVM);
 
             if (predicted_label == -1) {
                 std::cerr << "Error: Prediction failed!" << std::endl;
@@ -463,39 +475,13 @@ void make_predictions_on_test_cases(const std::string& images_dir, cv::Ptr<cv::m
             std::cout << filePath << " || Predicted Traffic Sign Category: " << predicted_label << std::endl;
         }
     }
-
-    //std::vector<std::string> filenames = {"0", "4", "18", "25", "35"};
-    //std::cout << "\nMaking predictions on test cases...\n";
-    //std::vector<std::string> filenames;
-    //filenames.push_back("0.ppm");
-    //filenames.push_back("4.ppm");
-    //filenames.push_back("18.ppm");
-    //filenames.push_back("25.ppm");
-    //filenames.push_back("35.ppm");
-    //auto it = filenames.begin();
-    //for (int i = 0; i < 5; ++i, ++it) {
-    //    std::string filePath = "images/" + *it;
-    //    std::cout << "File: " << filePath;
-    //    cv::Mat img = cv::imread(filePath, cv::IMREAD_COLOR);
-    //    if (img.empty()) {
-    //        std::cerr << "Error: Could not open or find the image!" << std::endl;
-    //    }
-    //    preprocess_image(img);
-    //    // Predict the traffic sign category
-    //    int predicted_label = predict_traffic_sign(svm, img);
-
-    //    if (predicted_label == -1) {
-    //        std::cerr << "Error: Prediction failed!" << std::endl;
-    //    }
-    //    std::cout << " || Predicted Traffic Sign Category: " << predicted_label << std::endl;
-    //}
     std::cout << "Predictions completed.\n";
 }
 
 // New function for parameter optimization
 std::pair<double, double> optimize_svm_parameters(const cv::Mat& trainData,
-    const cv::Mat& labelsMat,
-    double& bestAccuracy) {
+                                                const cv::Mat& labelsMat,
+                                                double& bestAccuracy) {
 
     std::cout << "\nOptimizing SVM parameters using k-fold cross validation...\n";
     auto start = std::chrono::high_resolution_clock::now();
@@ -591,3 +577,36 @@ std::pair<double, double> optimize_svm_parameters(const cv::Mat& trainData,
     return std::make_pair(bestC, bestGamma);
 }
 
+void configure_svm() {
+    svm = cv::ml::SVM::create();
+    svm->setType(cv::ml::SVM::C_SVC);
+    svm->setKernel(cv::ml::SVM::RBF);
+
+    // Find optimal parameters
+    double bestAccuracy;
+    double bestC = 100, bestGamma = 0.01;
+    //auto [bestC, bestGamma] = optimize_svm_parameters(trainData, labelsMat, bestAccuracy);
+
+    // Train final model with best parameters
+    svm->setC(bestC);
+    svm->setGamma(bestGamma);
+}
+
+
+void configure_knn() {
+    knn = cv::ml::KNearest::create();
+    knn->setDefaultK(3); // Set number of neighbors
+     // Train k-NN model with different k values
+    //for (int k = 1; k <= 11; k += 2) { // Test odd values from 1 to 11
+    //    knn->setDefaultK(k);
+    //    knn->train(trainData, cv::ml::ROW_SAMPLE, labelsMat);
+    //}
+
+    // Save the trained model if needed
+    /*try {
+        knn->save("knn_model.xml");
+    }
+    catch (const cv::Exception& e) {
+        std::cerr << "Error saving model: " << e.what() << std::endl;
+    }*/
+}

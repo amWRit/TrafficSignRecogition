@@ -27,31 +27,25 @@ int main() {
         return -1;
     }
 
-    // Create k-NN instance
-    //auto knn = cv::ml::KNearest::create();
-    cv::Ptr<cv::ml::SVM> svm;
-
-    // Train the model using the loaded images and labels
-    train_model(trainImages, trainLabels, svm);
-
-    // Evaluate model performance (optional)
-    evaluate_model(svm, testImages, testLabels);
-
     // Using gtsrb-test-data-classification.csv, load filename and respective classID to a map
     build_test_data_class_ID_map(test_data_class_file);
 
-    //make_predictions_on_test_set(test_data_directory, 5, svm);
-    //try {
-    //    // Your code that may throw an exception
-    //    //make_predictions_on_test_set(test_data_directory, 5, svm);
-    //    predict_signs(trainImages, trainLabels, svm);
-    //}
-    //catch (const cv::Exception& e) {
-    //    std::cerr << "OpenCV Exception: " << e.what() << std::endl;
-    //}
-    make_predictions_on_test_set(test_data_directory, 5, svm);
-    make_predictions_on_loaded_set(images, labels, 5, svm);
-    make_predictions_on_test_cases(images_dir, svm);
+    // Create k-NN instance
+    //auto knn = cv::ml::KNearest::create();
+    //cv::Ptr<cv::ml::SVM> svm;
+    std::cout <<"\n=== SVM MODEL ===\n";
+    train_model(trainImages, trainLabels, ModelType::SVM);
+    evaluate_model(testImages, testLabels, ModelType::SVM);
+    make_predictions_on_test_set(test_data_directory, 5, ModelType::SVM);
+    make_predictions_on_loaded_set(images, labels, 5, ModelType::SVM);
+    make_predictions_on_test_cases(images_dir, ModelType::SVM);
+
+    std::cout << "\n=== KNN MODEL ===\n";
+    train_model(trainImages, trainLabels, ModelType::KNN);
+    evaluate_model(testImages, testLabels, ModelType::KNN);
+    make_predictions_on_test_set(test_data_directory, 5, ModelType::KNN);
+    make_predictions_on_loaded_set(images, labels, 5, ModelType::KNN);
+    make_predictions_on_test_cases(images_dir, ModelType::KNN);
 
     return 0;
 }
