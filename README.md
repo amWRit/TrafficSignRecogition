@@ -9,6 +9,17 @@ This project implements a traffic sign recognition system using the k-Nearest Ne
 - **Prediction**: Allows users to input an image path for real-time traffic sign classification.
 - **Evaluation**: Computes model accuracy using a designated test dataset.
 
+## Demo
+
+### 1. **Loading data**
+<img src="demo/start.JPG" alt="Loading" width="600"/>
+
+### 2. **SVM Model**
+<img src="demo/svm_demo.JPG" alt="SVM Model" width="600"/>
+
+### 3. **KNN Model**
+<img src="demo/knn_demo.JPG" alt="KNN Model" width="600"/>
+
 ## Requirements
 
 - OpenCV
