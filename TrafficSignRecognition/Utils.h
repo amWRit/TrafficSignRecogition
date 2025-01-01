@@ -17,6 +17,7 @@ const int NUM_PREDICT_CASES = 5;
 
 extern std::unordered_map<std::string, int> test_data_map;
 
+// instances of classifiers
 extern cv::Ptr<cv::ml::KNearest> knn;
 extern cv::Ptr<cv::ml::SVM> svm;
 

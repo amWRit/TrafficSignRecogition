@@ -30,9 +30,6 @@ int main() {
     // Using gtsrb-test-data-classification.csv, load filename and respective classID to a map
     build_test_data_class_ID_map(test_data_class_file);
 
-    // Create k-NN instance
-    //auto knn = cv::ml::KNearest::create();
-    //cv::Ptr<cv::ml::SVM> svm;
     std::cout <<"\n=== SVM MODEL ===\n";
     train_model(trainImages, trainLabels, ModelType::SVM);
     evaluate_model(testImages, testLabels, ModelType::SVM);

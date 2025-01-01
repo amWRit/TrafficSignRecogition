@@ -1,10 +1,9 @@
 #pragma once
-
 #include <iostream>
 #include <memory>
 #include <unordered_map>
 
-//enums for StrategyType
+//enums for ModelType
 enum class ModelType {
     KNN,
     SVM,

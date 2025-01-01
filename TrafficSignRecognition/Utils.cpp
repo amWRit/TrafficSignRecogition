@@ -11,6 +11,7 @@
 #include "EnumClass.h"
 
 std::unordered_map<std::string, int> test_data_map;
+// instances of classifiers
 cv::Ptr<cv::ml::KNearest> knn;
 cv::Ptr<cv::ml::SVM> svm;
 
@@ -254,7 +255,7 @@ void train_model(const std::vector<cv::Mat>& images,
     std::cout << "Time taken: " << duration.count() / 60000000 << " minutes" << std::endl;
 }
 
-// Function for evaluating the trained model by testing against test-data
+// Function for evaluating the trained model by testing against splitted test data
 void evaluate_model(const std::vector<cv::Mat>& testImages,
     const std::vector<int>& testLabels,
     ModelType modelType) {
@@ -377,7 +378,7 @@ int predict_traffic_sign(const cv::Mat& img, ModelType modelType) {
     return static_cast<int>(predictedLabel.at<float>(0, 0)); // Return predicted label
 }
 
-// Functions to make predictions for images from test-data-dir using predict_traffic_sign method
+// Functions to make predictions for images from gtsrb-test-data dir using predict_traffic_sign method
 void make_predictions_on_test_set(const std::string& test_data_dir, int count, ModelType modelType) {
     std::cout << "\nMaking predictions on test_set...\n";
     // Create a vector of filenames from the test_data_map
