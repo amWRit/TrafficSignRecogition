@@ -1,4 +1,4 @@
-# Traffic Sign Recognition Using
+# Traffic Sign Recognition
 
 This project implements a traffic sign recognition system using the k-Nearest Neighbors (k-NN) algorithm and Support Vector Machine (SVM) Algorithm, leveraging the German Traffic Sign Recognition Benchmark (GTSRB) dataset. The system is designed to classify traffic signs from images, making it suitable for applications in autonomous driving and road safety.
 
